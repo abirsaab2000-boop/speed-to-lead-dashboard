@@ -1,0 +1,676 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Speed-to-Lead Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: one answer first (winner strip), then three side-by-side source columns that never blend,
+   then cost comparisons, weekly trend, the full table, and plain-English definitions. */
+:root {
+  --page: #f4f5f2;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #7d7c76;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11, 11, 11, 0.10);
+  --wash: rgba(11, 11, 11, 0.045);
+  --s-meta: #2a78d6;
+  --s-website: #eb6834;
+  --s-referral: #1baf7a;
+  --win-bg: #0f1f17;
+  --win-ink: #f2f7f3;
+  --win-sub: #a9c4b3;
+  --good-ink: #006300;
+  --warn-ink: #8a5300;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0f0f0e; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8e88;
+    --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.06);
+    --s-meta: #3987e5; --s-website: #d95926; --s-referral: #199e70;
+    --win-bg: #12261b; --win-ink: #eef6f0; --win-sub: #9dbba8; --good-ink: #2fbf4a; --warn-ink: #f0b44a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0f0f0e; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #8f8e88;
+  --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.06);
+  --s-meta: #3987e5; --s-website: #d95926; --s-referral: #199e70;
+  --win-bg: #12261b; --win-ink: #eef6f0; --win-sub: #9dbba8; --good-ink: #2fbf4a; --warn-ink: #f0b44a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+  display: flex; flex-direction: column; gap: 28px;
+}
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.3rem); line-height: 1.12; font-weight: 700; }
+h2 { font-size: 1.2rem; font-weight: 600; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; }
+.eyebrow { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--s-meta); outline-offset: 2px; border-radius: 6px; }
+
+/* Header + filters */
+.top { display: flex; flex-direction: column; gap: 16px; }
+.title-row { display: flex; flex-direction: column; gap: 6px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--ring); border-radius: 9px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500; color: var(--ink-2); }
+.seg button:hover { background: var(--wash); color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.dates { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.875rem; color: var(--ink-2); }
+.dates input { background: var(--surface); border: 1px solid var(--ring); border-radius: 7px; padding: 5px 8px; font-size: 0.875rem; }
+.status { font-size: 0.85rem; color: var(--ink-2); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.pill { display: inline-block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ring); color: var(--ink-2); background: var(--surface); }
+.pill.demo { color: var(--warn-ink); }
+.pill.live { color: var(--good-ink); }
+
+/* Winner strip */
+.winner { background: var(--win-bg); color: var(--win-ink); border-radius: 14px; padding: 22px 24px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px 32px; align-items: center; }
+.winner .lead { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.winner .eyebrow { color: var(--win-sub); }
+.winner .headline { font-family: var(--font-display); font-size: clamp(1.35rem, 1rem + 1.4vw, 1.9rem); line-height: 1.2; font-weight: 600; }
+.winner .headline strong { font-weight: 700; }
+.winner .sub { color: var(--win-sub); font-size: 0.92rem; max-width: 60ch; }
+.winner .ranks { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rank { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 9px; background: rgba(255, 255, 255, 0.06); }
+.rank.first { background: rgba(255, 255, 255, 0.13); }
+.rank .pos { font-size: 0.8rem; color: var(--win-sub); font-variant-numeric: tabular-nums; }
+.rank .nm { display: flex; align-items: center; gap: 8px; font-weight: 500; min-width: 0; }
+.rank .val { font-family: var(--font-display); font-weight: 600; font-variant-numeric: tabular-nums; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+.winner .dot { box-shadow: 0 0 0 2px var(--win-bg); }
+
+/* Source columns */
+.sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 18px; min-width: 0; position: relative; }
+.card.is-win { box-shadow: 0 0 0 2px var(--accent) inset; }
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.card-head .who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.card-head .name { display: flex; align-items: center; gap: 8px; }
+.card-head .note { font-size: 0.8rem; color: var(--muted); }
+.badge { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; background: var(--ink); color: var(--surface); white-space: nowrap; }
+.hero { display: flex; flex-direction: column; gap: 2px; }
+.hero .label { font-size: 0.8rem; color: var(--ink-2); font-weight: 500; }
+.hero .big { font-family: var(--font-display); font-size: 2.4rem; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+.hero .small { font-size: 0.8rem; color: var(--muted); }
+.funnel { display: flex; flex-direction: column; gap: 8px; }
+.frow { display: grid; grid-template-columns: 74px minmax(0, 1fr) 44px; gap: 10px; align-items: center; font-size: 0.85rem; }
+.frow .fl { color: var(--ink-2); }
+.frow .track { height: 16px; position: relative; }
+.frow .bar { height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; min-width: 2px; }
+.frow .bar.dim { opacity: 0.85; }
+.frow .fv { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.frow .conv { grid-column: 2 / 4; font-size: 0.72rem; color: var(--muted); margin-top: -6px; font-variant-numeric: tabular-nums; }
+.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--grid); border-radius: 10px; overflow: hidden; border: 1px solid var(--grid); }
+.metric { background: var(--surface); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.metric .k { font-size: 0.75rem; color: var(--ink-2); }
+.metric .v { font-family: var(--font-display); font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.metric .h { font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Panels */
+.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panel-head { display: flex; flex-direction: column; gap: 4px; }
+.panel-head p { color: var(--ink-2); font-size: 0.875rem; max-width: 70ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.costs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+.cost-chart { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cost-chart h3 { font-size: 0.95rem; }
+.crow { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 0.82rem; cursor: default; }
+.crow .cl { color: var(--ink-2); }
+.crow .ctrack { display: flex; align-items: center; gap: 8px; min-width: 0; height: 22px; }
+.crow .cbar { height: 14px; background: var(--accent); border-radius: 0 4px 4px 0; min-width: 2px; flex: none; }
+.crow .cv { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.crow .cheap { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--good-ink); white-space: nowrap; }
+.crow:hover .cbar { filter: brightness(1.08); }
+.trend-box { position: relative; width: 100%; min-width: 0; }
+.trend-box svg { display: block; width: 100%; overflow: visible; }
+.trend-box text { font-family: var(--font-body); }
+.empty { color: var(--muted); font-size: 0.9rem; padding: 18px 0; }
+
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.875rem; }
+th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-weight: 600; color: var(--ink-2); font-size: 0.8rem; }
+tbody th { font-weight: 500; }
+tbody th .dot { margin-right: 8px; }
+
+.glossary { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px 28px; margin: 0; }
+.glossary div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.glossary dt { font-weight: 600; font-size: 0.9rem; }
+.glossary dd { margin: 0; color: var(--ink-2); font-size: 0.875rem; }
+.foot { font-size: 0.8rem; color: var(--muted); }
+
+.tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--ring); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.14); border-radius: 9px; padding: 8px 10px; font-size: 0.8rem; max-width: 260px; }
+.tip .tt { font-weight: 600; margin-bottom: 4px; }
+.tip .tr { display: flex; align-items: center; gap: 8px; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.tip .tr span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+
+@media (max-width: 720px) {
+  .winner { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+  .hero .big { font-size: 2rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .frow .bar, .crow .cbar { transition: width 0.35s ease; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="title-row">
+      <p class="eyebrow">Speed-to-Lead Revenue Engine · Owner view</p>
+      <h1>Which lead source brings the cheapest booked calls?</h1>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Data source">
+        <button type="button" id="mode-demo" data-mode="demo">Demo data</button>
+        <button type="button" id="mode-live" data-mode="live">Live data</button>
+      </div>
+      <div class="seg" role="group" aria-label="Date range">
+        <button type="button" id="preset-7" data-preset="7">Last 7 days</button>
+        <button type="button" id="preset-30" data-preset="30">Last 30 days</button>
+        <button type="button" id="preset-all" data-preset="all">All time</button>
+      </div>
+      <div class="dates">
+        <label for="from">From</label><input type="date" id="from">
+        <label for="to">to</label><input type="date" id="to">
+      </div>
+    </div>
+    <p class="status" id="status"></p>
+  </header>
+
+  <section class="winner" id="winner" aria-live="polite"></section>
+
+  <section class="sources" id="sources" aria-label="Results by lead source"></section>
+
+  <section class="panel" id="cost-panel">
+    <div class="panel-head">
+      <h2>What each source costs</h2>
+      <p>Ad spend divided by results. Read across the three charts: a source can have cheap leads and still produce expensive calls.</p>
+    </div>
+    <div class="costs" id="costs"></div>
+  </section>
+
+  <section class="panel" id="trend-panel">
+    <div class="panel-head">
+      <h2>Booked calls per week</h2>
+      <p>Each line is one source. Weeks start on Monday and are grouped by the day the lead opted in.</p>
+    </div>
+    <div class="legend" id="trend-legend"></div>
+    <div class="trend-box" id="trend"></div>
+  </section>
+
+  <section class="panel" id="table-panel">
+    <div class="panel-head">
+      <h2>All numbers by source</h2>
+      <p>The same numbers as above, in one table.</p>
+    </div>
+    <div class="table-wrap"><table id="table"></table></div>
+  </section>
+
+  <section class="panel" id="glossary-panel">
+    <div class="panel-head"><h2>What each number means</h2></div>
+    <dl class="glossary">
+      <div><dt>Leads</dt><dd>People who filled in a form from that source. If someone comes in twice, the first source keeps the credit.</dd></div>
+      <div><dt>Qualified</dt><dd>Leads the AI check marked as a good fit (budget, B2B, decision maker, timeline).</dd></div>
+      <div><dt>Booked</dt><dd>Leads who booked a sales call through the calendar link.</dd></div>
+      <div><dt>Showed</dt><dd>Leads who actually turned up to the call.</dd></div>
+      <div><dt>First reply</dt><dd>Average minutes between the lead opting in and our first message reaching them. Lower is better; under 5 minutes is the goal.</dd></div>
+      <div><dt>Cost per lead</dt><dd>Spend for that source ÷ number of leads.</dd></div>
+      <div><dt>Cost per booked call</dt><dd>Spend ÷ booked calls. This is the number that decides the winner.</dd></div>
+      <div><dt>Cost per show</dt><dd>Spend ÷ calls that actually happened. The truest cost of a sales conversation.</dd></div>
+      <div><dt>No-show rate</dt><dd>Of the calls that were due, the share where the lead did not turn up.</dd></div>
+      <div><dt>Spend</dt><dd>Money spent on that source in the date range: Meta ads, Google ads for the website, and referral commissions and gift cards.</dd></div>
+    </dl>
+    <p class="foot" id="foot"></p>
+  </section>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Sources (fixed order, fixed colors: color follows the source, never its rank) ----------
+  var SOURCES = [
+    { key: "meta", name: "Meta ads", note: "Facebook & Instagram lead forms", color: "var(--s-meta)" },
+    { key: "website", name: "Website", note: "Google Search ads to the website form", color: "var(--s-website)" },
+    { key: "referral", name: "Referral", note: "Partner commissions & gift cards", color: "var(--s-referral)" }
+  ];
+  var BY_KEY = {}; SOURCES.forEach(function (s) { BY_KEY[s.key] = s; });
+
+  // ---------- Real ad spend (speed-to-lead/data/ad_spend.csv), used by demo mode ----------
+  var SPEND_CSV = "2026-08-15,meta,85.38|2026-08-15,website,22.31|2026-08-16,meta,68.02|2026-08-16,website,25.17|2026-08-17,meta,104.08|2026-08-17,website,51.08|2026-08-17,referral,150|2026-08-18,meta,130.77|2026-08-18,website,55.21|2026-08-19,meta,104.34|2026-08-19,website,59.31|2026-08-20,meta,107.26|2026-08-20,website,51|2026-08-21,meta,120.27|2026-08-21,website,52.03|2026-08-22,meta,76.19|2026-08-22,website,23.2|2026-08-23,meta,80.56|2026-08-23,website,21.51|2026-08-24,meta,135.08|2026-08-24,website,56.27|2026-08-24,referral,150|2026-08-25,meta,115.08|2026-08-25,website,49.26|2026-08-26,meta,100.33|2026-08-26,website,58.39|2026-08-27,meta,135.18|2026-08-27,website,55.66|2026-08-28,meta,98.12|2026-08-28,website,58.48|2026-08-29,meta,68.73|2026-08-29,website,28.05|2026-08-30,meta,86.16|2026-08-30,website,25.12|2026-08-31,meta,104.95|2026-08-31,website,47.43|2026-08-31,referral,150|2026-09-01,meta,110.79|2026-09-01,website,56.37|2026-09-01,referral,400|2026-09-02,meta,135.41|2026-09-02,website,46.82|2026-09-03,meta,121.71|2026-09-03,website,60.04|2026-09-04,meta,131.92|2026-09-04,website,53.1|2026-09-05,meta,68.77|2026-09-05,website,21.45|2026-09-06,meta,65.63|2026-09-06,website,27.11|2026-09-07,meta,126.07|2026-09-07,website,48.65|2026-09-07,referral,150|2026-09-08,meta,108|2026-09-08,website,59.5|2026-09-09,meta,109.9|2026-09-09,website,57.44|2026-09-10,meta,102.9|2026-09-10,website,47.48|2026-09-11,meta,125.02|2026-09-11,website,55.26|2026-09-12,meta,65.63|2026-09-12,website,24.4|2026-09-13,meta,86.61|2026-09-13,website,25.96|2026-09-14,meta,106.49|2026-09-14,website,46.97|2026-09-14,referral,150|2026-09-15,meta,113.53|2026-09-15,website,51.16|2026-09-16,meta,99.3|2026-09-16,website,58.6|2026-09-17,meta,99.41|2026-09-17,website,54.41|2026-09-18,meta,96.58|2026-09-18,website,59.91|2026-09-19,meta,78.05|2026-09-19,website,25.1|2026-09-20,meta,79.99|2026-09-20,website,21.32|2026-09-21,meta,135.78|2026-09-21,website,46.96|2026-09-21,referral,150|2026-09-22,meta,96.15|2026-09-22,website,47.8|2026-09-23,meta,127.4|2026-09-23,website,47.32|2026-09-24,meta,139.85|2026-09-24,website,62.08|2026-09-25,meta,118.14|2026-09-25,website,52.94|2026-09-26,meta,83.73|2026-09-26,website,21.58|2026-09-27,meta,75.93|2026-09-27,website,22.31|2026-09-28,meta,116.97|2026-09-28,website,59.82|2026-09-28,referral,150|2026-09-29,meta,121.55|2026-09-29,website,53.36|2026-09-30,meta,110.27|2026-09-30,website,61.72|2026-10-01,meta,155.2|2026-10-01,website,58.88|2026-10-01,referral,400|2026-10-02,meta,121.16|2026-10-02,website,61.3|2026-10-03,meta,118.31|2026-10-03,website,23.75|2026-10-04,meta,108.43|2026-10-04,website,22.47|2026-10-05,meta,126.19|2026-10-05,website,54.21|2026-10-05,referral,150|2026-10-06,meta,139.99|2026-10-06,website,59.56|2026-10-07,meta,128.91|2026-10-07,website,48.97|2026-10-08,meta,132.94|2026-10-08,website,56.51|2026-10-09,meta,150.77|2026-10-09,website,63.04|2026-10-10,meta,110.65|2026-10-10,website,26.29|2026-10-11,meta,108.6|2026-10-11,website,23.42|2026-10-12,meta,153.12|2026-10-12,website,63.08|2026-10-12,referral,150|2026-10-13,meta,159.05|2026-10-13,website,47.15|2026-10-14,meta,140.72|2026-10-14,website,62.08";
+
+  // ---------- Date helpers (YYYY-MM-DD strings, UTC) ----------
+  function toDate(s) { return new Date(s + "T00:00:00Z"); }
+  function toStr(d) { return d.toISOString().slice(0, 10); }
+  function addDays(s, n) { var d = toDate(s); d.setUTCDate(d.getUTCDate() + n); return toStr(d); }
+  function weekStart(s) { var d = toDate(s); var dow = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dow); return toStr(d); }
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtDay(s) { var d = toDate(s); return MONTHS[d.getUTCMonth()] + " " + d.getUTCDate(); }
+  function fmtDayY(s) { return fmtDay(s) + ", " + toDate(s).getUTCFullYear(); }
+
+  // ---------- Demo data: real spend + made-up (but realistic) funnel, same columns as dashboard_daily ----------
+  function makeRng(seed) {
+    return function () {
+      seed = (seed + 0x6D2B79F5) | 0;
+      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function buildDemo() {
+    var rnd = makeRng(2636);
+    function poisson(l) { var L = Math.exp(-l), k = 0, p = 1; do { k++; p *= rnd(); } while (p > L); return k - 1; }
+    function binom(n, p) { var k = 0; for (var i = 0; i < n; i++) if (rnd() < p) k++; return k; }
+    // How each source behaves (tuned so totals look like a small agency's real funnel)
+    var PROFILE = {
+      meta:     { lam: function (sp) { return sp / 21; }, q: 0.34, b: 0.42, s: 0.66, ns: 0.88, reply: 1.9 },
+      website:  { lam: function (sp) { return sp / 30; }, q: 0.50, b: 0.46, s: 0.76, ns: 0.85, reply: 1.4 },
+      referral: { lam: function () { return 0.55; },      q: 0.72, b: 0.62, s: 0.85, ns: 0.85, reply: 2.6 }
+    };
+    var spend = {};
+    SPEND_CSV.split("|").forEach(function (r) { var c = r.split(","); spend[c[0] + "|" + c[1]] = Number(c[2]); });
+    var rows = [], day = "2026-08-15", end = "2026-10-14";
+    while (day <= end) {
+      SOURCES.forEach(function (s) {
+        var p = PROFILE[s.key], sp = spend[day + "|" + s.key] || 0;
+        var leads = poisson(p.lam(sp));
+        var qualified = binom(leads, p.q), booked = binom(qualified, p.b), showed = binom(booked, p.s);
+        var noShow = binom(booked - showed, p.ns);
+        var replied = leads, mins = 0;
+        for (var i = 0; i < replied; i++) mins += 0.4 + (-Math.log(1 - rnd())) * (p.reply - 0.4);
+        rows.push({ day: day, source: s.key, leads: leads, qualified: qualified, booked: booked, showed: showed,
+          reply_minutes_sum: mins, replied: replied, appts_showed: showed, appts_no_show: noShow, spend_usd: sp });
+      });
+      day = addDays(day, 1);
+    }
+    return rows;
+  }
+
+  // ---------- State ----------
+  var DEMO = buildDemo();
+  var live = { rows: null, fetchedAt: null, error: null };
+  var state = { mode: "demo", preset: "all", from: null, to: null };
+  try { var saved = localStorage.getItem("stl-mode"); if (saved === "live" || saved === "demo") state.mode = saved; } catch (e) {}
+
+  function rowsNow() { return state.mode === "demo" ? DEMO : (live.rows || []); }
+  function bounds(rows) {
+    var min = null, max = null;
+    rows.forEach(function (r) { if (min === null || r.day < min) min = r.day; if (max === null || r.day > max) max = r.day; });
+    return { min: min, max: max };
+  }
+  function applyPreset() {
+    var b = bounds(rowsNow());
+    if (!b.min) { state.from = state.to = null; return; }
+    state.to = b.max;
+    if (state.preset === "all") state.from = b.min;
+    else { var f = addDays(b.max, -(Number(state.preset) - 1)); state.from = f < b.min ? b.min : f; }
+  }
+
+  // ---------- Aggregation (mirrors the dashboard_by_source view, but for any date range) ----------
+  function aggregate(rows, from, to) {
+    var out = {};
+    SOURCES.forEach(function (s) { out[s.key] = { leads: 0, qualified: 0, booked: 0, showed: 0, replyMin: 0, replied: 0, apptShowed: 0, apptNoShow: 0, spend: 0 }; });
+    rows.forEach(function (r) {
+      if (!out[r.source] || (from && r.day < from) || (to && r.day > to)) return;
+      var a = out[r.source];
+      a.leads += +r.leads || 0; a.qualified += +r.qualified || 0; a.booked += +r.booked || 0; a.showed += +r.showed || 0;
+      a.replyMin += +r.reply_minutes_sum || 0; a.replied += +r.replied || 0;
+      a.apptShowed += +r.appts_showed || 0; a.apptNoShow += +r.appts_no_show || 0; a.spend += +r.spend_usd || 0;
+    });
+    SOURCES.forEach(function (s) {
+      var a = out[s.key];
+      a.avgReply = a.replied ? a.replyMin / a.replied : null;
+      a.cpl = a.leads ? a.spend / a.leads : null;
+      a.cpb = a.booked ? a.spend / a.booked : null;
+      a.cps = a.showed ? a.spend / a.showed : null;
+      var due = a.apptShowed + a.apptNoShow;
+      a.noShow = due ? a.apptNoShow / due : null;
+    });
+    return out;
+  }
+
+  // ---------- Formatting ----------
+  function money(v) {
+    if (v === null || v === undefined) return "—";
+    var dec = v < 10 ? 2 : 0;
+    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+  function count(v) { return Math.round(v).toLocaleString("en-US"); }
+  function pct(v) { return v === null || v === undefined ? "—" : Math.round(v * 100) + "%"; }
+  function minutes(v) {
+    if (v === null || v === undefined) return "—";
+    if (v < 1) return Math.round(v * 60) + " sec";
+    return (Math.round(v * 10) / 10).toFixed(1) + " min";
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function dot(color) { return '<span class="dot" style="background:' + color + '"></span>'; }
+
+  // ---------- Tooltip ----------
+  var tip = document.getElementById("tip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html; tip.hidden = false;
+    var w = tip.offsetWidth, h = tip.offsetHeight, vw = document.documentElement.clientWidth, vh = window.innerHeight;
+    var left = x + 14, top = y + 14;
+    if (left + w > vw - 8) left = x - w - 14;
+    if (left < 8) left = 8;
+    if (top + h > vh - 8) top = y - h - 14;
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+
+  // ---------- Render ----------
+  function render() {
+    var rows = rowsNow();
+    var agg = aggregate(rows, state.from, state.to);
+    renderControls(rows);
+    renderStatus(rows);
+    if (!rows.length) { renderNoData(); return; }
+    var ranked = SOURCES.filter(function (s) { return agg[s.key].cpb !== null; })
+      .sort(function (a, b) { return agg[a.key].cpb - agg[b.key].cpb; });
+    var winKey = ranked.length ? ranked[0].key : null;
+    renderWinner(agg, ranked);
+    renderCards(agg, winKey);
+    renderCosts(agg);
+    renderTrend(rows);
+    renderTable(agg);
+  }
+
+  function renderControls(rows) {
+    document.querySelectorAll("[data-mode]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)); });
+    document.querySelectorAll("[data-preset]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.preset === state.preset)); });
+    var b = bounds(rows), f = document.getElementById("from"), t = document.getElementById("to");
+    f.min = t.min = b.min || ""; f.max = t.max = b.max || "";
+    f.value = state.from || ""; t.value = state.to || "";
+    f.disabled = t.disabled = !rows.length;
+  }
+
+  function renderStatus(rows) {
+    var el = document.getElementById("status"), foot = document.getElementById("foot");
+    var range = state.from ? fmtDayY(state.from) + " – " + fmtDayY(state.to) : "";
+    if (state.mode === "demo") {
+      el.innerHTML = '<span class="pill demo">Demo data</span><span>Real ad spend, made-up leads and calls, for demonstration. ' + esc(range) + '</span>';
+      foot.textContent = "Demo mode: spend comes from the real ad spend sheet (Aug 15 – Oct 14, 2026). Leads, bookings and shows are generated to look realistic and are not real results.";
+    } else if (live.error) {
+      el.innerHTML = '<span class="pill">Live data</span><span>' + esc(live.error) + '</span>';
+      foot.textContent = "";
+    } else {
+      var when = live.fetchedAt ? new Date(live.fetchedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "";
+      el.innerHTML = '<span class="pill live">Live data</span><span>From the Supabase view dashboard_daily, ' + (live.direct ? "loaded " : "last copied ") + esc(when) + '. ' + esc(range) + '</span>';
+      foot.textContent = "Live mode: numbers come from the dashboard_daily view in Supabase (numbers only, no names or emails). Until GoHighLevel is fully connected, leads and bookings here are test data.";
+    }
+  }
+
+  function renderNoData() {
+    var msg = state.mode === "live"
+      ? (live.rows === null && !live.error ? "Loading live numbers…" : "No live numbers yet. Switch to Demo data to see how the dashboard looks with a full month of leads.")
+      : "No data.";
+    document.getElementById("winner").innerHTML = '<div class="lead"><p class="eyebrow">Cheapest booked call</p><p class="headline">' + esc(msg) + '</p></div>';
+    ["sources", "costs", "trend", "table", "trend-legend"].forEach(function (id) { document.getElementById(id).innerHTML = ""; });
+  }
+
+  function renderWinner(agg, ranked) {
+    var el = document.getElementById("winner");
+    if (!ranked.length) {
+      el.innerHTML = '<div class="lead"><p class="eyebrow">Cheapest booked call</p><p class="headline">No booked calls in this date range yet.</p>' +
+        '<p class="sub">Pick a longer range, or wait for the first bookings to come in.</p></div>';
+      return;
+    }
+    var w = ranked[0], wa = agg[w.key];
+    var sub = "";
+    var cplRank = SOURCES.filter(function (s) { return agg[s.key].cpl !== null; }).sort(function (a, b) { return agg[a.key].cpl - agg[b.key].cpl; });
+    if (cplRank.length && cplRank[0].key !== w.key) {
+      sub = cplRank[0].name + " has the cheapest leads (" + money(agg[cplRank[0].key].cpl) + " each), but fewer of them book a call, so each booked call costs more.";
+    } else {
+      sub = w.name + " also has the cheapest leads, at " + money(wa.cpl) + " each.";
+    }
+    var missing = SOURCES.filter(function (s) { return agg[s.key].cpb === null; });
+    if (missing.length) sub += " " + missing.map(function (s) { return s.name; }).join(" and ") + (missing.length > 1 ? " have" : " has") + " no booked calls in this range.";
+    var noSpend = ranked.filter(function (s) { return agg[s.key].spend === 0; });
+    if (noSpend.length) sub += " No ad spend is recorded for " + noSpend.map(function (s) { return s.name; }).join(" and ") + " in these dates yet, so the cost shows as $0.";
+    var ranks = ranked.map(function (s, i) {
+      return '<div class="rank' + (i === 0 ? " first" : "") + '"><span class="pos">' + (i + 1) + '</span><span class="nm">' + dot(s.color) + esc(s.name) +
+        '</span><span class="val">' + money(agg[s.key].cpb) + '</span></div>';
+    }).join("");
+    el.innerHTML = '<div class="lead"><p class="eyebrow">Cheapest booked call</p>' +
+      '<p class="headline"><strong>' + esc(w.name) + '</strong> brings the cheapest booked calls: <strong class="num">' + money(wa.cpb) + '</strong> each.</p>' +
+      '<p class="sub">' + esc(sub) + '</p></div>' +
+      '<div class="ranks" aria-label="Cost per booked call, cheapest first">' + ranks + '</div>';
+  }
+
+  function renderCards(agg, winKey) {
+    var html = SOURCES.map(function (s) {
+      var a = agg[s.key];
+      var steps = [["Leads", a.leads, null], ["Qualified", a.qualified, a.leads], ["Booked", a.booked, a.qualified], ["Showed", a.showed, a.booked]];
+      var max = Math.max(a.leads, 1);
+      var funnel = steps.map(function (st, i) {
+        var w = Math.max(0, st[1] / max * 100);
+        var conv = i === 0 ? "" : '<span class="conv">' + (st[2] ? Math.round(st[1] / st[2] * 100) + "% of " + steps[i - 1][0].toLowerCase() : "—") + "</span>";
+        return '<div class="frow"><span class="fl">' + st[0] + '</span><span class="track"><span class="bar" style="display:block;width:' + w.toFixed(1) + '%"></span></span><span class="fv">' + count(st[1]) + "</span>" + conv + "</div>";
+      }).join("");
+      var isWin = s.key === winKey;
+      return '<article class="card' + (isWin ? " is-win" : "") + '" id="card-' + s.key + '" style="--accent:' + s.color + '">' +
+        '<div class="card-head"><div class="who"><h3 class="name">' + dot(s.color) + esc(s.name) + '</h3><span class="note">' + esc(s.note) + "</span></div>" +
+        (isWin ? '<span class="badge">Cheapest call</span>' : "") + "</div>" +
+        '<div class="hero"><span class="label">Cost per booked call</span><span class="big num">' + money(a.cpb) + "</span>" +
+        '<span class="small num">' + money(a.spend) + " spent · " + count(a.booked) + " booked</span></div>" +
+        '<div class="funnel" aria-label="Funnel for ' + esc(s.name) + '">' + funnel + "</div>" +
+        '<div class="metrics">' +
+          metric("First reply", minutes(a.avgReply), "average, opt-in to first message") +
+          metric("Cost per lead", money(a.cpl), count(a.leads) + " leads") +
+          metric("Cost per show", money(a.cps), count(a.showed) + " showed") +
+          metric("No-show rate", pct(a.noShow), count(a.apptNoShow) + " of " + count(a.apptShowed + a.apptNoShow) + " calls due") +
+        "</div></article>";
+    }).join("");
+    document.getElementById("sources").innerHTML = html;
+  }
+  function metric(k, v, h) { return '<div class="metric"><span class="k">' + k + '</span><span class="v">' + v + '</span><span class="h">' + esc(h) + "</span></div>"; }
+
+  function renderCosts(agg) {
+    var defs = [
+      { id: "cpl", title: "Cost per lead", base: "leads", baseLabel: "leads" },
+      { id: "cpb", title: "Cost per booked call", base: "booked", baseLabel: "booked calls" },
+      { id: "cps", title: "Cost per show", base: "showed", baseLabel: "calls that happened" }
+    ];
+    var html = defs.map(function (d) {
+      var vals = SOURCES.map(function (s) { return agg[s.key][d.id]; });
+      var present = vals.filter(function (v) { return v !== null; });
+      var max = present.length ? Math.max.apply(null, present) : 1;
+      var min = present.length ? Math.min.apply(null, present) : null;
+      var rowsHtml = SOURCES.map(function (s, i) {
+        var v = vals[i];
+        var w = v === null ? 0 : Math.max(1.5, v / max * 72);
+        return '<div class="crow" data-cost="' + d.id + '" data-src="' + s.key + '" style="--accent:' + s.color + '"><span class="cl">' + esc(s.name) + '</span>' +
+          '<span class="ctrack">' + (v === null ? "" : '<span class="cbar" style="width:' + w.toFixed(1) + '%"></span>') +
+          '<span class="cv">' + money(v) + "</span>" + (v !== null && v === min && present.length > 1 ? '<span class="cheap">Cheapest</span>' : "") + "</span></div>";
+      }).join("");
+      return '<div class="cost-chart" id="cost-' + d.id + '"><h3>' + d.title + "</h3>" + rowsHtml + "</div>";
+    }).join("");
+    var box = document.getElementById("costs");
+    box.innerHTML = html;
+    box.querySelectorAll(".crow").forEach(function (row) {
+      var d = defs.filter(function (x) { return x.id === row.dataset.cost; })[0], s = BY_KEY[row.dataset.src], a = agg[s.key];
+      function move(ev) {
+        showTip('<div class="tt">' + esc(s.name) + " · " + d.title + '</div><div class="tr"><span>Spend</span><span>' + money(a.spend) + '</span></div>' +
+          '<div class="tr"><span>' + esc(d.baseLabel.charAt(0).toUpperCase() + d.baseLabel.slice(1)) + '</span><span>' + count(a[d.base]) + '</span></div>' +
+          '<div class="tr"><span>' + d.title + '</span><span><b>' + money(a[d.id]) + "</b></span></div>", ev.clientX, ev.clientY);
+      }
+      row.addEventListener("pointermove", move);
+      row.addEventListener("pointerleave", hideTip);
+    });
+  }
+
+  function renderTrend(rows) {
+    var legend = document.getElementById("trend-legend");
+    legend.innerHTML = SOURCES.map(function (s) { return "<span>" + dot(s.color) + esc(s.name) + "</span>"; }).join("");
+    var box = document.getElementById("trend");
+    var weeks = [], idx = {};
+    rows.forEach(function (r) {
+      if (r.day < state.from || r.day > state.to) return;
+      var w = weekStart(r.day);
+      if (!(w in idx)) { idx[w] = weeks.length; weeks.push({ w: w, v: { meta: 0, website: 0, referral: 0 } }); }
+    });
+    weeks.sort(function (a, b) { return a.w < b.w ? -1 : 1; });
+    weeks.forEach(function (o, i) { idx[o.w] = i; });
+    rows.forEach(function (r) {
+      if (r.day < state.from || r.day > state.to || !BY_KEY[r.source]) return;
+      weeks[idx[weekStart(r.day)]].v[r.source] += +r.booked || 0;
+    });
+    if (!weeks.length) { box.innerHTML = '<p class="empty">No weeks in this range.</p>'; return; }
+
+    var W = Math.max(280, box.clientWidth), H = 240, m = { l: 34, r: 78, t: 12, b: 28 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var maxV = 0; weeks.forEach(function (o) { SOURCES.forEach(function (s) { maxV = Math.max(maxV, o.v[s.key]); }); });
+    var step = niceStep(Math.max(maxV, 4) / 4), top = Math.ceil(Math.max(maxV, 1) / step) * step;
+    function x(i) { return m.l + (weeks.length === 1 ? iw / 2 : i / (weeks.length - 1) * iw); }
+    function y(v) { return m.t + ih - v / top * ih; }
+
+    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" height="' + H + '" role="img" aria-label="Booked calls per week by source">';
+    for (var t = 0; t <= top + 1e-9; t += step) {
+      svg += '<line x1="' + m.l + '" x2="' + (m.l + iw) + '" y1="' + y(t) + '" y2="' + y(t) + '" stroke="' + (t === 0 ? "var(--axis)" : "var(--grid)") + '" stroke-width="1"/>';
+      svg += '<text x="' + (m.l - 8) + '" y="' + (y(t) + 4) + '" text-anchor="end" font-size="11" fill="var(--muted)">' + t + "</text>";
+    }
+    var every = Math.max(1, Math.ceil(weeks.length / Math.max(1, Math.floor(iw / 64))));
+    weeks.forEach(function (o, i) {
+      if (i % every) return;
+      svg += '<text x="' + x(i) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' + fmtDay(o.w) + "</text>";
+    });
+    // lines
+    var ends = [];
+    SOURCES.forEach(function (s) {
+      var d = weeks.map(function (o, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(o.v[s.key]).toFixed(1); }).join(" ");
+      svg += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+      var last = weeks[weeks.length - 1];
+      svg += '<circle cx="' + x(weeks.length - 1) + '" cy="' + y(last.v[s.key]) + '" r="4" fill="' + s.color + '" stroke="var(--surface)" stroke-width="2"/>';
+      ends.push({ s: s, y: y(last.v[s.key]) });
+    });
+    // direct labels at line ends, nudged apart so they never overlap
+    ends.sort(function (a, b) { return a.y - b.y; });
+    for (var k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 14) ends[k].y = ends[k - 1].y + 14;
+    ends.forEach(function (e) {
+      svg += '<text x="' + (x(weeks.length - 1) + 10) + '" y="' + (e.y + 4) + '" font-size="12" font-weight="500" fill="var(--ink-2)">' + esc(e.s.name) + "</text>";
+    });
+    svg += '<line id="xh" x1="0" x2="0" y1="' + m.t + '" y2="' + (m.t + ih) + '" stroke="var(--axis)" stroke-width="1" visibility="hidden"/>';
+    svg += '<g id="xh-dots"></g>';
+    svg += '<rect x="' + m.l + '" y="' + m.t + '" width="' + iw + '" height="' + ih + '" fill="transparent" id="hit"/>';
+    svg += "</svg>";
+    box.innerHTML = svg;
+
+    var svgEl = box.querySelector("svg"), xh = svgEl.querySelector("#xh"), dots = svgEl.querySelector("#xh-dots");
+    svgEl.querySelector("#hit").addEventListener("pointermove", function (ev) {
+      var r = svgEl.getBoundingClientRect(), px = (ev.clientX - r.left) * (W / r.width);
+      var i = weeks.length === 1 ? 0 : Math.round((px - m.l) / iw * (weeks.length - 1));
+      i = Math.max(0, Math.min(weeks.length - 1, i));
+      var o = weeks[i];
+      xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i)); xh.setAttribute("visibility", "visible");
+      dots.innerHTML = SOURCES.map(function (s) { return '<circle cx="' + x(i) + '" cy="' + y(o.v[s.key]) + '" r="4.5" fill="' + s.color + '" stroke="var(--surface)" stroke-width="2"/>'; }).join("");
+      var endDay = addDays(o.w, 6);
+      showTip('<div class="tt">Week of ' + fmtDay(o.w) + (endDay > state.to || o.w < state.from ? " (partial)" : "") + "</div>" +
+        SOURCES.map(function (s) { return '<div class="tr"><span>' + dot(s.color) + esc(s.name) + "</span><span>" + o.v[s.key] + " booked</span></div>"; }).join(""),
+        ev.clientX, ev.clientY);
+    });
+    svgEl.querySelector("#hit").addEventListener("pointerleave", function () { xh.setAttribute("visibility", "hidden"); dots.innerHTML = ""; hideTip(); });
+  }
+  function niceStep(raw) {
+    var p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+  }
+
+  function renderTable(agg) {
+    var cols = [
+      ["Spend", function (a) { return money(a.spend); }],
+      ["Leads", function (a) { return count(a.leads); }],
+      ["Qualified", function (a) { return count(a.qualified); }],
+      ["Booked", function (a) { return count(a.booked); }],
+      ["Showed", function (a) { return count(a.showed); }],
+      ["First reply", function (a) { return minutes(a.avgReply); }],
+      ["Cost / lead", function (a) { return money(a.cpl); }],
+      ["Cost / booked call", function (a) { return money(a.cpb); }],
+      ["Cost / show", function (a) { return money(a.cps); }],
+      ["No-show rate", function (a) { return pct(a.noShow); }]
+    ];
+    var html = "<thead><tr><th scope=\"col\">Source</th>" + cols.map(function (c) { return '<th scope="col">' + c[0] + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      SOURCES.map(function (s) {
+        return '<tr><th scope="row">' + dot(s.color) + esc(s.name) + "</th>" + cols.map(function (c) { return "<td>" + c[1](agg[s.key]) + "</td>"; }).join("") + "</tr>";
+      }).join("") + "</tbody>";
+    document.getElementById("table").innerHTML = html;
+  }
+
+  // ---------- Live data ----------
+  // 1) Ask Supabase directly (works on a normal website such as GitHub Pages).
+  //    The publishable key is meant to be public: it can only read the two number-only views.
+  // 2) If that is blocked (inside a Claude Artifact), use the saved copy live-data.json.
+  var SUPABASE_URL = "https://jqnxazrlslrfvnrmarpz.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_rZ9ZrEmHP1zAbFknbeHHnA_woKsZ4cO";
+  function fetchSupabase() {
+    return fetch(SUPABASE_URL + "/rest/v1/dashboard_daily?select=*&order=day.asc,source.asc", {
+      headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY, Accept: "application/json" },
+      cache: "no-store"
+    }).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (rows) { live.direct = true; return { fetched_at: new Date().toISOString(), rows: rows }; });
+  }
+  function fetchSnapshot() {
+    return fetch("live-data.json", { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+  function loadLive() {
+    live.direct = false; live.error = null;
+    fetchSupabase().catch(fetchSnapshot)
+      .then(function (j) {
+        live.rows = Array.isArray(j.rows) ? j.rows.filter(function (r) { return r && r.day && BY_KEY[r.source]; }).map(function (r) {
+          return Object.assign({}, r, { day: String(r.day).slice(0, 10) });
+        }) : [];
+        live.fetchedAt = j.fetched_at || null;
+        if (!live.rows.length) live.error = "No live numbers have been copied from Supabase yet.";
+      })
+      .catch(function () { live.rows = []; live.error = "Live numbers could not be loaded."; })
+      .then(function () { if (state.mode === "live") { applyPreset(); render(); } });
+  }
+
+  // ---------- Events ----------
+  document.querySelectorAll("[data-mode]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.mode = b.dataset.mode;
+      try { localStorage.setItem("stl-mode", state.mode); } catch (e) {}
+      applyPreset(); render();
+    });
+  });
+  document.querySelectorAll("[data-preset]").forEach(function (b) {
+    b.addEventListener("click", function () { state.preset = b.dataset.preset; applyPreset(); render(); });
+  });
+  function onDate() {
+    var f = document.getElementById("from").value, t = document.getElementById("to").value;
+    if (!f || !t) return;
+    if (f > t) { var tmp = f; f = t; t = tmp; }
+    state.preset = "custom"; state.from = f; state.to = t; render();
+  }
+  document.getElementById("from").addEventListener("change", onDate);
+  document.getElementById("to").addEventListener("change", onDate);
+  var rt;
+  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(function () { if (rowsNow().length) renderTrend(rowsNow()); }, 120); });
+
+  applyPreset();
+  render();
+  loadLive();
+})();
+</script>
+
+</body></html>
